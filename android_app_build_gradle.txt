@@ -1,0 +1,6 @@
+        release {
+            storeFile file('your_key_name.keystore')
+            storePassword 'tmp12345'
+            keyAlias 'your_key_alias'
+            keyPassword 'tmp12345'
+        }
