@@ -30,10 +30,6 @@ const styles = StyleSheet.create({
   },
   buttonCopy: {
     height: 28,
-    paddingBottom: 10,
-    // position: 'absolute',
-    // right: 10,
-    // top: 100,
   },
   card: {
     margin: '1%',
@@ -114,7 +110,7 @@ export default class HomeScreen extends React.Component {
       console.log('App came to foreground. Updating orders.');
       firestore()
         .collection('orders')
-        .get()
+        .get({source: 'server'})
         .then((results) => this.updateOrders(results));
     }
     this.setState({appState: nextAppState});
@@ -130,7 +126,7 @@ export default class HomeScreen extends React.Component {
         const dbRef = firestore().collection('drivers');
         dbRef
           .where('email', '==', authUser.email.toLowerCase().trim())
-          .get()
+          .get({source: 'server'})
           .then((u) => {
             const fU = u.docs[0] && u.docs[0].data();
             if (fU && fU.enabled) {
@@ -224,7 +220,7 @@ export default class HomeScreen extends React.Component {
       firestore()
         .collection('orders')
         .doc(order.uid)
-        .get()
+        .get({source: 'server'})
         .then((result) => resolve(result.data()));
     });
   }
@@ -279,7 +275,7 @@ export default class HomeScreen extends React.Component {
                   ? styles.stateEnabled
                   : styles.stateDisabled
               }>
-              {states[order.status || 'pending']}
+              {states[order.status || 'viewed']}
             </Text>
           </Paragraph>
           <Paragraph>
@@ -309,7 +305,7 @@ export default class HomeScreen extends React.Component {
           <Paragraph style={styles.para}>
             <Button
               style={styles.buttonCopy}
-              mode={'contained'}
+              mode={'clear'}
               onPress={() =>
                 this.copyToClipboard(
                   (order.shop.address.addressLine1 || '') +
@@ -342,7 +338,7 @@ export default class HomeScreen extends React.Component {
           <Paragraph style={styles.para}>
             <Button
               style={styles.buttonCopy}
-              mode={'contained'}
+              mode={'clear'}
               onPress={() =>
                 this.copyToClipboard(
                   order.shop.address.coordinates.latitude +
@@ -361,7 +357,13 @@ export default class HomeScreen extends React.Component {
               </Paragraph>
               <Paragraph>
                 <Text style={styles.label}>Telefone: </Text>
-                <Text style={styles.value}>{order.user.phoneNumber}</Text>
+                <Text
+                  style={styles.link}
+                  onPress={() =>
+                    Linking.openURL(`tel:${order.user.phoneNumber}`)
+                  }>
+                  {order.user.phoneNumber}
+                </Text>
               </Paragraph>
               <Paragraph style={styles.para}>
                 <Text style={styles.label}>Morada Cliente: </Text>
@@ -377,8 +379,8 @@ export default class HomeScreen extends React.Component {
               </Paragraph>
               <Paragraph style={styles.para}>
                 <Button
-                  style={styles.button}
-                  mode={'contained'}
+                  style={styles.buttonCopy}
+                  mode={'clear'}
                   onPress={() =>
                     this.copyToClipboard(
                       (order.address.addressLine1 || '') +
@@ -410,8 +412,8 @@ export default class HomeScreen extends React.Component {
               </Paragraph>
               <Paragraph style={styles.para}>
                 <Button
-                  style={styles.button}
-                  mode={'contained'}
+                  style={styles.buttonCopy}
+                  mode={'clear'}
                   onPress={() =>
                     this.copyToClipboard(
                       order.address.coordinates.latitude +
