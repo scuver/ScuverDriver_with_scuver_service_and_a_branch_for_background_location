@@ -140,15 +140,15 @@ export default class HomeScreen extends React.Component {
                 },
               );
             } else {
-              Alert.alert('Info', 'Por favor efetue o login.', null, {
-                cancelable: true,
-              });
+              // Alert.alert('Info', 'Por favor efetue o login.', null, {
+              //   cancelable: true,
+              // });
             }
           });
       } else {
-        Alert.alert('Info', 'Por favor efetue o login.', null, {
-          cancelable: true,
-        });
+        // Alert.alert('Info', 'Por favor efetue o login.', null, {
+        //   cancelable: true,
+        // });
         this.props.navigation.navigate('Login');
       }
     });
