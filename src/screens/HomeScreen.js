@@ -11,7 +11,6 @@ import {
 import AsyncStorage from '@react-native-community/async-storage';
 import {Order} from '../model/order';
 import {showLocation} from 'react-native-map-link';
-import moment from 'moment';
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import Clipboard from '@react-native-community/clipboard';
@@ -20,6 +19,7 @@ const styles = StyleSheet.create({
   scrollView: {
     textAlign: 'center',
     padding: '2%',
+    height: '94%',
   },
   button: {
     marginLeft: 'auto',
@@ -30,6 +30,12 @@ const styles = StyleSheet.create({
   },
   buttonCopy: {
     height: 28,
+  },
+  buttonHistory: {
+    marginLeft: 'auto',
+    // marginTop: 100,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   card: {
     margin: '1%',
@@ -67,18 +73,15 @@ const states = {
 };
 
 export default class HomeScreen extends React.Component {
+  ordersSubscription = null;
+
   constructor(props) {
     super(props);
     this.state = {
       orders: [],
       user: null,
-      viewedOrders: 0,
-      preparedOrders: 0,
-      deliveringOrder: null,
       appState: AppState.currentState,
     };
-
-    //firebase.database().settings({experimentalForceLongPolling: true});
   }
 
   componentDidMount() {
@@ -99,6 +102,7 @@ export default class HomeScreen extends React.Component {
   componentWillUnmount() {
     this._unsubscribe();
     AppState.removeEventListener('change', this._handleAppStateChange);
+    this.ordersSubscription();
   }
 
   _handleAppStateChange = (nextAppState) => {
@@ -110,6 +114,8 @@ export default class HomeScreen extends React.Component {
       console.log('App came to foreground. Updating orders.');
       firestore()
         .collection('orders')
+        .where('type', '==', 'delivery')
+        .where('status', 'in', ['viewed', 'ready', 'bringing'])
         .get({source: 'server'})
         .then((results) => this.updateOrders(results));
     }
@@ -165,7 +171,7 @@ export default class HomeScreen extends React.Component {
       // );
     });
 
-    AsyncStorage.getItem('fcm_token').then((u: any) => {
+    AsyncStorage.getItem('fcm_driver_token').then((u: any) => {
       console.log('u', u);
       if (!u) {
         console.log('Getting Firebase Token');
@@ -174,7 +180,7 @@ export default class HomeScreen extends React.Component {
           .then((fcmToken) => {
             if (fcmToken) {
               console.log('Your Firebase Token is:', fcmToken);
-              AsyncStorage.setItem('fcm_token', fcmToken);
+              AsyncStorage.setItem('fcm_driver_token', fcmToken);
               let tks = this.state.user.fcmTokens;
               if (!tks) {
                 tks = [];
@@ -182,7 +188,7 @@ export default class HomeScreen extends React.Component {
               tks.push(fcmToken);
               firestore()
                 .collection('drivers')
-                .doc(this.state.user.key)
+                .doc(this.state.user.uid)
                 .update({
                   fcmTokens: tks,
                 });
@@ -226,37 +232,29 @@ export default class HomeScreen extends React.Component {
   }
 
   subscribeOrders() {
-    firestore()
+    this.ordersSubscription = firestore()
       .collection('orders')
+      .where('type', '==', 'delivery')
+      .where('status', 'in', ['viewed', 'ready', 'bringing'])
       .onSnapshot((results) => this.updateOrders(results));
   }
 
   updateOrders(results) {
+    const renderedOrders = [];
     const orders = [];
-    let viewedOrders = 0;
-    let preparedOrders = 0;
-    let deliveringOrder = null;
-    results.forEach((doc: any) => {
-      const order: Order = doc.data();
-
+    results.forEach((r) => orders.push(r.data()));
+    const driverHasOrder = orders.find(
+      (o) => o.driver?.email === this.state.user.email,
+    );
+    orders.forEach((order: Order) => {
       if (
-        order.type === 'delivery' &&
-        (order.status === 'viewed' ||
-          order.status === 'ready' ||
-          order.status === 'bringing') &&
-        order.driver?.email === this.state.user.email
+        order.driver?.email === this.state.user.email ||
+        (!order.driver && !driverHasOrder)
       ) {
-        deliveringOrder = order;
-      } else if (
-        order.type === 'delivery' &&
-        (order.status === 'viewed' || order.status === 'ready') &&
-        !order.driver
-      ) {
-        order.status === 'viewed' ? viewedOrders++ : preparedOrders++;
-        orders.push(this.renderOrder(order));
+        renderedOrders.push(this.renderOrder(order));
       }
     });
-    this.setState({orders, viewedOrders, preparedOrders, deliveringOrder});
+    this.setState({orders: renderedOrders});
   }
 
   copyToClipboard = (text) => {
@@ -284,7 +282,9 @@ export default class HomeScreen extends React.Component {
           </Paragraph>
           <Paragraph>
             <Text style={styles.label}>Referência: </Text>
-            <Text style={styles.value}>{order.uid}</Text>
+            <Text style={styles.value}>
+              {order.uid?.substring(order.uid.length - 4)}
+            </Text>
           </Paragraph>
           <Paragraph>
             <Text style={styles.label}>Estabelecimento: </Text>
@@ -349,7 +349,7 @@ export default class HomeScreen extends React.Component {
               Copiar
             </Button>
           </Paragraph>
-          {!!order.driver && order.status === 'bringing' && (
+          {!!order.driver && (
             <>
               <Paragraph>
                 <Text style={styles.label}>Cliente: </Text>
@@ -470,7 +470,7 @@ export default class HomeScreen extends React.Component {
                 style={styles.button}
                 mode={'contained'}
                 onPress={() => this.bringing(order)}>
-                Entregar
+                Encomenda Recolhida
               </Button>
             )}
           {order.driver?.email === this.state.user.email &&
@@ -479,7 +479,7 @@ export default class HomeScreen extends React.Component {
                 style={styles.button}
                 mode={'contained'}
                 onPress={() => this.complete(order)}>
-                Entregue
+                Entrega Concluída
               </Button>
             )}
         </Card.Actions>
@@ -506,7 +506,6 @@ export default class HomeScreen extends React.Component {
               {
                 text: 'Sim',
                 onPress: () => {
-                  const log = order.log;
                   order.log.push('Accepted at ' + new Date());
                   order.driver = this.state.user;
                   firestore().collection('orders').doc(order.uid).update({
@@ -617,26 +616,24 @@ export default class HomeScreen extends React.Component {
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           style={styles.scrollView}>
-          {this.state && !this.state.deliveringOrder && (
+          {this.state && (
             <>
               <Paragraph>
-                <Text style={styles.label}>Encomendas em Preparação: </Text>
+                <Text style={styles.label}>Entregas: </Text>
                 <Text style={styles.value}>
-                  {this.state && this.state.viewedOrders}
-                </Text>
-              </Paragraph>
-              <Paragraph>
-                <Text style={styles.label}>Encomendas para Entrega: </Text>
-                <Text style={styles.value}>
-                  {this.state && this.state.preparedOrders}
+                  {this.state.orders?.length || 0}
                 </Text>
               </Paragraph>
             </>
           )}
-          {this.state && this.state.deliveringOrder
-            ? this.renderOrder(this.state.deliveringOrder)
-            : this.state.orders}
+          {this.state && this.state.orders}
         </ScrollView>
+        <Button
+          style={styles.buttonHistory}
+          mode={'outlined'}
+          onPress={() => this.props.navigation.navigate('History')}>
+          Histórico de Entregas
+        </Button>
       </SafeAreaView>
     );
   }

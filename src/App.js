@@ -11,6 +11,7 @@ import LoginScreen from './screens/LoginScreen';
 import {createStackNavigator} from '@react-navigation/stack';
 import HomeScreen from './screens/HomeScreen';
 import firebase from '@react-native-firebase/app';
+import HistoryScreen from './screens/HistoryScreen';
 // import * as firebase from 'firebase';
 
 const firebaseConfig = {
@@ -51,6 +52,11 @@ const App = () => {
           <Stack.Screen
             name="Home"
             component={HomeScreen}
+            options={{headerShown: false}}
+          />
+          <Stack.Screen
+            name="History"
+            component={HistoryScreen}
             options={{headerShown: false}}
           />
           <Stack.Screen
