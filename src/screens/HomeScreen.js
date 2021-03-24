@@ -112,10 +112,11 @@ export default class HomeScreen extends React.Component {
       nextAppState === 'active'
     ) {
       console.log('App came to foreground. Updating orders.');
+
       firestore()
         .collection('orders')
         .where('type', '==', 'delivery')
-        .where('status', 'in', ['viewed', 'ready', 'bringing'])
+        .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
         .get({source: 'server'})
         .then((results) => this.updateOrders(results));
     }
@@ -221,28 +222,28 @@ export default class HomeScreen extends React.Component {
     );
   }
 
-  getUpdatedOrder(order) {
-    return new Promise((resolve) => {
-      firestore()
-        .collection('orders')
-        .doc(order.uid)
-        .get({source: 'server'})
-        .then((result) => resolve(result.data()));
-    });
-  }
-
   subscribeOrders() {
     this.ordersSubscription = firestore()
       .collection('orders')
       .where('type', '==', 'delivery')
-      .where('status', 'in', ['viewed', 'ready', 'bringing'])
+      .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
       .onSnapshot((results) => this.updateOrders(results));
   }
 
   updateOrders(results) {
     const renderedOrders = [];
     const orders = [];
-    results.forEach((r) => orders.push(r.data()));
+    results.forEach((r) => {
+      const o = r.data();
+      if (
+        this.state.user.email === 'alphatbf@hotmail.com' ||
+        this.state.user.email === 'goncalo.p.gomes@hotmail.com' ||
+        this.state.user.email === 'estafeta10.scuver@gmail.com' ||
+        o.status !== 'pending'
+      ) {
+        orders.push(o);
+      }
+    });
     const driverHasOrder = orders.find(
       (o) => o.driver?.email === this.state.user.email,
     );
@@ -455,7 +456,12 @@ export default class HomeScreen extends React.Component {
           </Paragraph>
         </Card.Content>
         <Card.Actions>
-          {(order.status === 'viewed' || order.status === 'ready') &&
+          {((order.status === 'pending' &&
+            this.state.user.email === 'alphatbf@hotmail.com') ||
+            this.state.user.email === 'goncalo.p.gomes@hotmail.com' ||
+            this.state.user.email === 'estafeta10.scuver@gmail.com' ||
+            order.status === 'viewed' ||
+            order.status === 'ready') &&
             !order.driver && (
               <Button
                 style={styles.button}
@@ -488,48 +494,58 @@ export default class HomeScreen extends React.Component {
   }
 
   accept(order: Order) {
-    this.getUpdatedOrder(order).then((o) => {
-      if (order.status === 'viewed' || order.status === 'ready') {
-        if (
-          order.paymentMethod !== 'payment-on-delivery' ||
-          (order.paymentMethod === 'payment-on-delivery' && this.state.user.tpa)
-        ) {
-          Alert.alert(
-            'Aceitar Encomenda',
-            'Tem a certeza que quer aceitar esta encomenda? Deve garantir que consegue estar no estabelecimento dentro de 10 minutos depois de Pronta para Entrega.',
-            [
-              {
-                text: 'Não',
-                onPress: () => console.log('Encomenda não aceite.'),
-                style: 'cancel',
+    if (
+      order.status === 'pending' ||
+      order.status === 'viewed' ||
+      order.status === 'ready'
+    ) {
+      if (
+        order.paymentMethod !== 'payment-on-delivery' ||
+        (order.paymentMethod === 'payment-on-delivery' && this.state.user.tpa)
+      ) {
+        Alert.alert(
+          'Aceitar Encomenda',
+          'Tem a certeza que quer aceitar esta encomenda? Deve garantir que consegue estar no estabelecimento dentro de 10 minutos depois de Pronta para Entrega.',
+          [
+            {
+              text: 'Não',
+              onPress: () => console.log('Encomenda não aceite.'),
+              style: 'cancel',
+            },
+            {
+              text: 'Sim',
+              onPress: () => {
+                fetch(
+                  'https://europe-west1-scuver-data.cloudfunctions.net/driverAcceptOrder',
+                  {
+                    method: 'post',
+                    body: JSON.stringify({
+                      driverUID: this.state.user.uid,
+                      orderUID: order.uid,
+                    }),
+                  },
+                )
+                  .then((response) => {
+                    console.log('response', response);
+                    this.setState({
+                      deliveringOrder: order,
+                    });
+                  })
+                  .catch((err) => console.error('ERROR', err));
               },
-              {
-                text: 'Sim',
-                onPress: () => {
-                  order.log.push('Accepted at ' + new Date());
-                  order.driver = this.state.user;
-                  firestore().collection('orders').doc(order.uid).update({
-                    driver: this.state.user,
-                    log: order.log,
-                  });
-                  this.setState({
-                    deliveringOrder: order,
-                  });
-                },
-              },
-            ],
-            {cancelable: false},
-          );
-        } else {
-          Alert.alert(
-            'Info',
-            'Esta encomenda necessita TPA. Só estafetas com o terminal multibanco poderão aceitar.',
-          );
-        }
+            },
+          ],
+          {cancelable: false},
+        );
       } else {
-        Alert.alert('Info', 'Entrega já não está disponível.');
+        Alert.alert(
+          'Info',
+          'Esta encomenda necessita TPA. Só estafetas com o terminal multibanco poderão aceitar.',
+        );
       }
-    });
+    } else {
+      Alert.alert('Info', 'Entrega já não está disponível.');
+    }
   }
 
   bringing(order: Order) {

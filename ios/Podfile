@@ -8,11 +8,6 @@ target 'ScuverDriver' do
 
   use_react_native!(:path => config["reactNativePath"])
 
-  target 'ScuverDriverTests' do
-    inherit! :complete
-    # Pods for testing
-  end
-
   # Enables Flipper.
   #
   # Note that if you have use_frameworks! enabled, Flipper will not work and
@@ -23,11 +18,4 @@ target 'ScuverDriver' do
   end
 end
 
-target 'ScuverDriver-tvOS' do
-  # Pods for ScuverDriver-tvOS
 
-  target 'ScuverDriver-tvOSTests' do
-    inherit! :search_paths
-    # Pods for testing
-  end
-end
