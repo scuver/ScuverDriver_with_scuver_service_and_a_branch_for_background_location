@@ -527,9 +527,13 @@ export default class HomeScreen extends React.Component {
                 )
                   .then((response) => {
                     console.log('response', response);
-                    this.setState({
-                      deliveringOrder: order,
-                    });
+                    if (response.ok) {
+                      this.setState({
+                        deliveringOrder: order,
+                      });
+                    } else {
+                      Alert.alert('Info', 'Entrega já não está disponível.');
+                    }
                   })
                   .catch((err) => console.error('ERROR', err));
               },
