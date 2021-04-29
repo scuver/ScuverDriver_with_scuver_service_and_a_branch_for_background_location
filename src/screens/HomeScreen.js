@@ -117,8 +117,8 @@ export default class HomeScreen extends React.Component {
       firestore()
         .collection('orders')
         .where('type', '==', 'delivery')
-        // .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
-        .where('status', 'in', ['pending'])
+        .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
+        // .where('status', 'in', ['pending'])
         .get({source: 'server'})
         .then((results) => this.updateOrders(results));
     } else if (nextAppState === 'inactive' || nextAppState === 'background') {
@@ -217,8 +217,8 @@ export default class HomeScreen extends React.Component {
     this.ordersSubscription = firestore()
       .collection('orders')
       .where('type', '==', 'delivery')
-      // .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
-      .where('status', 'in', ['pending'])
+      .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
+      // .where('status', 'in', ['pending'])
       .onSnapshot((results) => this.updateOrders(results));
   }
 
@@ -227,36 +227,23 @@ export default class HomeScreen extends React.Component {
     const orders = [];
     results.forEach((r) => {
       const o = r.data();
-      if (
-        this.state.user.email === 'alphatbf@hotmail.com' ||
-        this.state.user.email === 'goncalo.p.gomes@hotmail.com' ||
-        this.state.user.email === 'estafeta10.scuver@gmail.com' ||
-        o.status !== 'pending'
-      ) {
+      if (this.state.user.isSuper || o.status !== 'pending') {
         orders.push(o);
       }
     });
     const driverHasOrder = !!orders.find(
-      (o) =>
-        o.driver?.email === this.state.user.email &&
-        !(
-          (!o.driver && ) ||
-          (!o.driver &&
-            this.state.user.email === 'goncalo.p.gomes@hotmail.com') ||
-          (!o.driver &&
-            this.state.user.email === 'estafeta10.scuver@gmail.com')
-        ),
+      (o) => o.driver?.email === this.state.user.email,
     );
 
-    const isSuper = this.state.user.email === 'alphatbf@hotmail.com'
-
     orders.forEach((order: Order) => {
-      if (order.driver?.email === this.state.user.email || !driverHasOrder) {
+      if (
+        order.driver?.email === this.state.user.email ||
+        (!order.driver && !driverHasOrder) ||
+        (!order.driver && this.state.user.isSuper)
+      ) {
         renderedOrders.push(this.renderOrder(order));
       }
     });
-    console.log('orders.length', orders.length);
-    console.log('driverHasOrder', driverHasOrder);
     if (orders.length && !driverHasOrder) {
       NotificationSound.startPlaying();
     } else {
@@ -463,10 +450,7 @@ export default class HomeScreen extends React.Component {
           </Paragraph>
         </Card.Content>
         <Card.Actions>
-          {((order.status === 'pending' &&
-            this.state.user.email === 'alphatbf@hotmail.com') ||
-            this.state.user.email === 'goncalo.p.gomes@hotmail.com' ||
-            this.state.user.email === 'estafeta10.scuver@gmail.com' ||
+          {((order.status === 'pending' && this.state.user.isSuper) ||
             order.status === 'viewed' ||
             order.status === 'ready') &&
             !order.driver && (

@@ -10,6 +10,7 @@ export class Driver {
     enabled = true,
     area = '',
     fcmTokens = [],
+    isSuper = false,
   ) {
     this.uid = uid;
     this.name = name;
@@ -21,5 +22,6 @@ export class Driver {
     this.enabled = enabled;
     this.area = area;
     this.fcmTokens = fcmTokens;
+    this.isSuper = isSuper;
   }
 }
