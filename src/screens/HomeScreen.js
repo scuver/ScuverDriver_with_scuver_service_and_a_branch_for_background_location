@@ -14,6 +14,7 @@ import {showLocation} from 'react-native-map-link';
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import Clipboard from '@react-native-community/clipboard';
+import NotificationSound from '../NotificationSound';
 
 const styles = StyleSheet.create({
   scrollView: {
@@ -23,10 +24,6 @@ const styles = StyleSheet.create({
   },
   button: {
     marginLeft: 'auto',
-    // position: 'absolute',
-    // right: 0,
-    // height: 300,
-    // marginBottom: '5%',
   },
   buttonCopy: {
     height: 28,
@@ -67,6 +64,7 @@ const styles = StyleSheet.create({
 });
 
 const states = {
+  pending: 'Pendente',
   viewed: 'Em Preparação',
   ready: 'Pronta para Entrega',
   bringing: 'A Entregar',
@@ -97,12 +95,15 @@ export default class HomeScreen extends React.Component {
       }
     });
     AppState.addEventListener('change', this._handleAppStateChange);
+    NotificationSound.startCheckingIfShouldPlayForeground();
   }
 
   componentWillUnmount() {
     this._unsubscribe();
     AppState.removeEventListener('change', this._handleAppStateChange);
-    this.ordersSubscription();
+    if (this.ordersSubscription) {
+      this.ordersSubscription();
+    }
   }
 
   _handleAppStateChange = (nextAppState) => {
@@ -116,9 +117,12 @@ export default class HomeScreen extends React.Component {
       firestore()
         .collection('orders')
         .where('type', '==', 'delivery')
-        .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
+        // .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
+        .where('status', 'in', ['pending'])
         .get({source: 'server'})
         .then((results) => this.updateOrders(results));
+    } else if (nextAppState === 'inactive' || nextAppState === 'background') {
+      NotificationSound.startCheckingIfShouldPlayBackground();
     }
     this.setState({appState: nextAppState});
   };
@@ -146,16 +150,9 @@ export default class HomeScreen extends React.Component {
                   this.subscribeOrders.bind(self)();
                 },
               );
-            } else {
-              // Alert.alert('Info', 'Por favor efetue o login.', null, {
-              //   cancelable: true,
-              // });
             }
           });
       } else {
-        // Alert.alert('Info', 'Por favor efetue o login.', null, {
-        //   cancelable: true,
-        // });
         this.props.navigation.navigate('Login');
       }
     });
@@ -163,15 +160,9 @@ export default class HomeScreen extends React.Component {
 
   initMessaging() {
     messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-      console.log('Message handled in the background!', remoteMessage);
+      console.log('Message handled in the background!');
+      NotificationSound.startPlaying();
     });
-    messaging().onMessage(async (remoteMessage) => {
-      // Alert.alert(
-      //   remoteMessage.notification.title,
-      //   remoteMessage.notification.body,
-      // );
-    });
-
     AsyncStorage.getItem('fcm_driver_token').then((u: any) => {
       console.log('u', u);
       if (!u) {
@@ -226,7 +217,8 @@ export default class HomeScreen extends React.Component {
     this.ordersSubscription = firestore()
       .collection('orders')
       .where('type', '==', 'delivery')
-      .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
+      // .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
+      .where('status', 'in', ['pending'])
       .onSnapshot((results) => this.updateOrders(results));
   }
 
@@ -244,17 +236,32 @@ export default class HomeScreen extends React.Component {
         orders.push(o);
       }
     });
-    const driverHasOrder = orders.find(
-      (o) => o.driver?.email === this.state.user.email,
+    const driverHasOrder = !!orders.find(
+      (o) =>
+        o.driver?.email === this.state.user.email &&
+        !(
+          (!o.driver && ) ||
+          (!o.driver &&
+            this.state.user.email === 'goncalo.p.gomes@hotmail.com') ||
+          (!o.driver &&
+            this.state.user.email === 'estafeta10.scuver@gmail.com')
+        ),
     );
+
+    const isSuper = this.state.user.email === 'alphatbf@hotmail.com'
+
     orders.forEach((order: Order) => {
-      if (
-        order.driver?.email === this.state.user.email ||
-        (!order.driver && !driverHasOrder)
-      ) {
+      if (order.driver?.email === this.state.user.email || !driverHasOrder) {
         renderedOrders.push(this.renderOrder(order));
       }
     });
+    console.log('orders.length', orders.length);
+    console.log('driverHasOrder', driverHasOrder);
+    if (orders.length && !driverHasOrder) {
+      NotificationSound.startPlaying();
+    } else {
+      NotificationSound.stopPlaying();
+    }
     this.setState({orders: renderedOrders});
   }
 
