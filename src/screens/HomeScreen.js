@@ -244,7 +244,7 @@ export default class HomeScreen extends React.Component {
         renderedOrders.push(this.renderOrder(order));
       }
     });
-    if (orders.length && !driverHasOrder) {
+    if (renderedOrders.length && !driverHasOrder) {
       NotificationSound.startPlaying();
     } else {
       NotificationSound.stopPlaying();
