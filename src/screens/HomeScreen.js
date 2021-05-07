@@ -14,7 +14,6 @@ import {showLocation} from 'react-native-map-link';
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import Clipboard from '@react-native-community/clipboard';
-import NotificationSound from '../NotificationSound';
 
 const styles = StyleSheet.create({
   scrollView: {
@@ -95,7 +94,6 @@ export default class HomeScreen extends React.Component {
       }
     });
     AppState.addEventListener('change', this._handleAppStateChange);
-    NotificationSound.startCheckingIfShouldPlayForeground();
   }
 
   componentWillUnmount() {
@@ -121,8 +119,6 @@ export default class HomeScreen extends React.Component {
         // .where('status', 'in', ['pending'])
         .get({source: 'server'})
         .then((results) => this.updateOrders(results));
-    } else if (nextAppState === 'inactive' || nextAppState === 'background') {
-      NotificationSound.startCheckingIfShouldPlayBackground();
     }
     this.setState({appState: nextAppState});
   };
@@ -148,6 +144,12 @@ export default class HomeScreen extends React.Component {
                 () => {
                   this.initMessaging.bind(self)();
                   this.subscribeOrders.bind(self)();
+                  AsyncStorage.setItem('user_email', fU.email);
+                  if (fU.isSuper) {
+                    AsyncStorage.setItem('user_is_super', 'true');
+                  } else {
+                    AsyncStorage.removeItem('user_is_super');
+                  }
                 },
               );
             }
@@ -161,7 +163,6 @@ export default class HomeScreen extends React.Component {
   initMessaging() {
     messaging().setBackgroundMessageHandler(async (remoteMessage) => {
       console.log('Message handled in the background!');
-      NotificationSound.startPlaying();
     });
     AsyncStorage.getItem('fcm_driver_token').then((u: any) => {
       console.log('u', u);
@@ -244,11 +245,6 @@ export default class HomeScreen extends React.Component {
         renderedOrders.push(this.renderOrder(order));
       }
     });
-    if (renderedOrders.length && !driverHasOrder) {
-      NotificationSound.startPlaying();
-    } else {
-      NotificationSound.stopPlaying();
-    }
     this.setState({orders: renderedOrders});
   }
 
