@@ -138,12 +138,7 @@ export default class HistoryScreen extends React.Component {
         orders.push(this.renderOrder(order));
       }
     });
-    orders.sort((a, b) => {
-      const c = moment(a.arrivalExpectedAt);
-      console.log('c', c.format('HH-MM'));
-      return a - b;
-    });
-    this.setState({orders});
+    this.setState({orders: orders.reverse()});
   }
 
   renderOrder(order: Order) {
