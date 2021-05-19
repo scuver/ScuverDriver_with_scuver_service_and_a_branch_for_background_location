@@ -14,48 +14,51 @@ class NotificationSoundClass {
   email;
   isSuper;
   playing = false;
+  ordersSubscription;
 
   initialize() {
-    this.startCheckingIfShouldPlay();
+    this.start();
   }
 
-  startPlaying() {
+  enablePlay() {
     AsyncStorage.setItem('play_sound', 'yes');
   }
 
-  stopPlaying() {
+  disablePlay() {
     AsyncStorage.removeItem('play_sound');
   }
 
-  startCheckingIfShouldPlay() {
-    this.stopCheckingIfShouldPlay();
+  start() {
+    this.stop();
     AsyncStorage.getItem('user_email').then((e) => (this.email = e));
     AsyncStorage.getItem('user_is_super').then((e) => (this.isSuper = e));
     BackgroundTimer.runBackgroundTimer(this.checkOrders.bind(this), 500);
-    setInterval(this.checkOrders.bind(this), 500);
+    this.interval = setInterval(this.checkOrders.bind(this), 500);
   }
 
   checkOrders() {
-    firestore()
-      .collection('orders')
-      .where('type', '==', 'delivery')
-      .where('status', 'in', ['pending', 'viewed', 'ready'])
-      .get({source: 'server'})
-      .then((results) => {
-        let found = false;
-        results.forEach((r) => {
-          const o = r.data();
-          if (!o.driver && (this.isSuper || o.status !== 'pending')) {
-            found = true;
+    console.log('ordersSUB', this.ordersSubscription);
+    if (!this.ordersSubscription) {
+      this.ordersSubscription = firestore()
+        .collection('orders')
+        .where('type', '==', 'delivery')
+        .where('status', 'in', ['pending', 'viewed', 'ready'])
+        .onSnapshot((results) => {
+          let found = false;
+          results.forEach((r) => {
+            const o = r.data();
+            if (!o.driver && (this.isSuper || o.status !== 'pending')) {
+              found = true;
+            }
+          });
+          if (found) {
+            this.enablePlay();
+          } else {
+            this.disablePlay();
           }
         });
-        if (found) {
-          this.startPlaying();
-        } else {
-          this.stopPlaying();
-        }
-        this.checkIfPlaySound();
-      });
+    }
+    this.checkIfPlaySound();
   }
 
   checkIfPlaySound() {
@@ -75,8 +78,14 @@ class NotificationSoundClass {
     });
   }
 
-  stopCheckingIfShouldPlay() {
+  stop() {
     BackgroundTimer.stopBackgroundTimer();
+    if (this.ordersSubscription) {
+      this.ordersSubscription();
+    }
+    if (this.interval) {
+      clearInterval(this.interval);
+    }
   }
 }
 

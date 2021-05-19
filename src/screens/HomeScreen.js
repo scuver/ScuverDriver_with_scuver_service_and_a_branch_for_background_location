@@ -14,6 +14,7 @@ import {showLocation} from 'react-native-map-link';
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import Clipboard from '@react-native-community/clipboard';
+import NotificationSound from '../NotificationSound';
 
 const styles = StyleSheet.create({
   scrollView: {
@@ -102,6 +103,7 @@ export default class HomeScreen extends React.Component {
     if (this.ordersSubscription) {
       this.ordersSubscription();
     }
+    NotificationSound.stop();
   }
 
   _handleAppStateChange = (nextAppState) => {
