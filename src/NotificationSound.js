@@ -4,11 +4,13 @@ const Sound = require('react-native-sound');
 import BackgroundTimer from 'react-native-background-timer';
 import firestore from '@react-native-firebase/firestore';
 
-Sound.setCategory('Alarm');
+Sound.setCategory('Playback');
 
 class NotificationSoundClass {
   player = new Player('whoosh.mp3', {
     continuesToPlayInBackground: true,
+    mixWithOthers: true,
+    autoDestroy: false,
   });
   interval = null;
   email;
@@ -37,7 +39,7 @@ class NotificationSoundClass {
   }
 
   checkOrders() {
-    console.log('ordersSUB', this.ordersSubscription);
+    // console.log('ordersSUB', this.ordersSubscription);
     if (!this.ordersSubscription) {
       this.ordersSubscription = firestore()
         .collection('orders')
@@ -56,6 +58,7 @@ class NotificationSoundClass {
           } else {
             this.disablePlay();
           }
+          this.checkIfPlaySound();
         });
     }
     this.checkIfPlaySound();

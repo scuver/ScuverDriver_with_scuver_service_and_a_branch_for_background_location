@@ -4,6 +4,7 @@ import {AppState, SafeAreaView, ScrollView, StyleSheet} from 'react-native';
 import AsyncStorage from '@react-native-community/async-storage';
 import {Order} from '../model/order';
 import firestore from '@react-native-firebase/firestore';
+import moment from 'moment';
 
 const styles = StyleSheet.create({
   scrollView: {
@@ -136,6 +137,11 @@ export default class HistoryScreen extends React.Component {
       if (order.driver?.email === this.state.user.email) {
         orders.push(this.renderOrder(order));
       }
+    });
+    orders.sort((a, b) => {
+      const c = moment(a.arrivalExpectedAt);
+      console.log('c', c.format('HH-MM'));
+      return a - b;
     });
     this.setState({orders});
   }
