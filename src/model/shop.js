@@ -18,6 +18,7 @@ export class Shop {
     minimumOrder = 5,
     businessType = 'shop',
     dinnerDisabled = false,
+    specificDrivers: Array<string> = null,
   ) {
     this.uid = uid;
     this.name = name;
@@ -36,5 +37,6 @@ export class Shop {
     this.minimumOrder = minimumOrder;
     this.businessType = businessType;
     this.dinnerDisabled = dinnerDisabled;
+    this.specificDrivers = specificDrivers;
   }
 }
