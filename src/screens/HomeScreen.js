@@ -240,11 +240,13 @@ export default class HomeScreen extends React.Component {
 
     orders.forEach((order: Order) => {
       if (
-        !order.shop.specificDrivers ||
-        order.shop.specificDrivers.find((d) => d === this.state.user.email) ||
-        order.driver?.email === this.state.user.email ||
-        (!order.driver && !driverHasOrder) ||
-        (!order.driver && this.state.user.isSuper)
+        (!order.shop.specificDrivers ||
+          order.shop.specificDrivers.find(
+            (d) => d === this.state.user.email,
+          )) &&
+        (order.driver?.email === this.state.user.email ||
+          (!order.driver && !driverHasOrder) ||
+          (!order.driver && this.state.user.isSuper))
       ) {
         renderedOrders.push(this.renderOrder(order));
       }
