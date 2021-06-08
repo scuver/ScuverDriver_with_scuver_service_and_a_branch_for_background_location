@@ -47,13 +47,16 @@ class NotificationSoundClass {
         .where('status', 'in', ['pending', 'viewed', 'ready'])
         .onSnapshot((results) => {
           let found = false;
+          let driverHasOrder = false;
           results.forEach((r) => {
             const o = r.data();
             if (!o.driver && (this.isSuper || o.status !== 'pending')) {
               found = true;
+            } else if (o.driver && o.driver.email === this.email) {
+              driverHasOrder = true;
             }
           });
-          if (found) {
+          if (found && !driverHasOrder) {
             this.enablePlay();
           } else {
             this.disablePlay();
