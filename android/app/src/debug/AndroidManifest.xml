@@ -1,8 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:usesCleartextTraffic="true" tools:targetApi="28" tools:ignore="GoogleAppIndexingWarning">
+        <meta-data android:name="com.transistorsoft.locationmanager.license" android:value="4fb00d0d076b54a634278e2a8ecf4c7b4ce99794ab06d4718a2d76a6eef1a803" />
+        <service android:name="com.transistorsoft.locationmanager.service.TrackingService" android:foregroundServiceType="location" />
+        <service android:name="com.transistorsoft.locationmanager.service.LocationRequestService" android:foregroundServiceType="location" />
+        <!-- You will only need to add this meta-data tag, but make sure it's a child of application -->
+        <meta-data
+                android:name="com.google.android.geo.API_KEY"
+                android:value="AIzaSyDYNIDWuvrgopqJn6JtyLWAFx3zmXCnd_0"/>
 
-    <application android:usesCleartextTraffic="true" tools:targetApi="28" tools:ignore="GoogleAppIndexingWarning" />
+        <!-- You will also only need to add this uses-library tag -->
+        <uses-library android:name="org.apache.http.legacy" android:required="false"/>
+
+    </application>
 </manifest>

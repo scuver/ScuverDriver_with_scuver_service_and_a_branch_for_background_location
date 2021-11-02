@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {Fragment} from 'react';
 import {Button, Card, Paragraph, Text} from 'react-native-paper';
 import {
   Alert,
@@ -15,24 +15,37 @@ import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import Clipboard from '@react-native-community/clipboard';
 import NotificationSound from '../NotificationSound';
+import BackgroundGeolocation from 'react-native-background-geolocation';
 
 const styles = StyleSheet.create({
   scrollView: {
     textAlign: 'center',
     padding: '2%',
-    height: '94%',
+    height: '86%',
+  },
+  disclaimer: {
+    paddingLeft: 20,
+    fontSize: 20,
+    // marginTop: 15,
+    // marginBottom: 15,
+    color: '#c21e1e',
+  },
+  bottomP: {
+    // margin: '5%',
+    height: 50,
+    alignContent: 'space-between',
+    textAlignVertical: 'bottom',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  underBottomP: {
+    marginRight: 20,
   },
   button: {
     marginLeft: 'auto',
   },
   buttonCopy: {
     height: 28,
-  },
-  buttonHistory: {
-    marginLeft: 'auto',
-    // marginTop: 100,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
   },
   card: {
     margin: '1%',
@@ -49,6 +62,11 @@ const styles = StyleSheet.create({
   },
   link: {
     color: '#50959d',
+  },
+  privacy: {
+    color: '#50959d',
+    fontSize: 25,
+    textDecorationLine: 'underline',
   },
   para: {
     marginBottom: '2%',
@@ -78,6 +96,10 @@ export default class HomeScreen extends React.Component {
     this.state = {
       orders: [],
       user: null,
+      latitude: 0,
+      longitude: 0,
+      hasOrder: false,
+      isTracking: false,
       appState: AppState.currentState,
     };
   }
@@ -162,6 +184,94 @@ export default class HomeScreen extends React.Component {
     });
   }
 
+  startLocating() {
+    const self = this;
+
+    // This handler fires whenever bgGeo receives a location update.
+    BackgroundGeolocation.onLocation(this.onLocation.bind(self), self.onError);
+
+    BackgroundGeolocation.onProviderChange((event) => {
+      console.log('[onProviderChange: ', event);
+
+      switch (event.status) {
+        case BackgroundGeolocation.AUTHORIZATION_STATUS_DENIED:
+          // Android & iOS
+          console.log('- Location authorization denied');
+          break;
+        case BackgroundGeolocation.AUTHORIZATION_STATUS_ALWAYS:
+          // Android & iOS
+          console.log('- Location always granted');
+          break;
+        case BackgroundGeolocation.AUTHORIZATION_STATUS_WHEN_IN_USE:
+          // iOS only
+          console.log('- Location WhenInUse granted');
+          break;
+      }
+    });
+
+    BackgroundGeolocation.ready(
+      {
+        // Geolocation Config
+        desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_NAVIGATION,
+        distanceFilter: 10,
+        // Activity Recognition
+        stopTimeout: 1,
+        // Application config
+        debug: false, // <-- enable this hear sounds for background-geolocation life-cycle.
+        logLevel: BackgroundGeolocation.LOG_LEVEL_VERBOSE,
+        stopOnTerminate: true, // <-- Allow the background-service to continue tracking when user closes the app.
+        startOnBoot: false, // <-- Auto start tracking when device is powered-up.
+      },
+      (state) => {
+        console.log(
+          'LOCATION - BackgroundGeolocation is configured and ready: ',
+          self.state.isTracking,
+        );
+
+        if (!self.state.isTracking) {
+          BackgroundGeolocation.start(function () {
+            self.setState({
+              isTracking: true,
+            });
+            console.log('- Start success');
+          });
+        }
+      },
+    );
+  }
+
+  onLocation(location) {
+    console.log(
+      'ON LOCATION this.isTracking',
+      this.state.isTracking,
+      this.state.user,
+      location,
+    );
+    if (location && this.state && this.state.user) {
+      this.setState(
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
+        () => {
+          firestore().collection('drivers').doc(this.state.user.uid).update({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+        },
+      );
+    }
+    if (!this.state.hasOrder && this.state.isTracking) {
+      BackgroundGeolocation.removeListeners();
+      this.setState({
+        isTracking: false,
+      });
+    }
+  }
+  onError(error) {
+    console.warn('[location] ERROR -', error);
+  }
+
   initMessaging() {
     messaging().setBackgroundMessageHandler(async (remoteMessage) => {
       console.log('Message handled in the background!');
@@ -226,6 +336,8 @@ export default class HomeScreen extends React.Component {
   }
 
   updateOrders(results) {
+    const self = this;
+
     const renderedOrders = [];
     const orders = [];
     results.forEach((r) => {
@@ -251,7 +363,15 @@ export default class HomeScreen extends React.Component {
         renderedOrders.push(this.renderOrder(order));
       }
     });
-    this.setState({orders: renderedOrders});
+    this.setState({orders: renderedOrders, hasOrder: driverHasOrder});
+    console.log(
+      'LOCATION hasOrder isTracking',
+      driverHasOrder,
+      this.state.isTracking,
+    );
+    if (driverHasOrder && !this.state.isTracking) {
+      this.startLocating.bind(self)();
+    }
   }
 
   copyToClipboard = (text) => {
@@ -498,7 +618,7 @@ export default class HomeScreen extends React.Component {
       ) {
         Alert.alert(
           'Aceitar Encomenda',
-          'Tem a certeza que quer aceitar esta encomenda? Deve garantir que consegue estar no estabelecimento dentro de 10 minutos depois de Pronta para Entrega.',
+          'Tem a certeza que quer aceitar esta encomenda? IMPORTANTE: Após aceitar a encomenda iremos monitorizar a sua localização em segundo-plano.',
           [
             {
               text: 'Não',
@@ -641,12 +761,52 @@ export default class HomeScreen extends React.Component {
           )}
           {this.state && this.state.orders}
         </ScrollView>
-        <Button
-          style={styles.buttonHistory}
-          mode={'outlined'}
-          onPress={() => this.props.navigation.navigate('History')}>
-          Histórico de Entregas
-        </Button>
+        {/*<Paragraph>*/}
+        {/*  <Text style={styles.value}> Lat: {this.state.latitude || 0} </Text>*/}
+        {/*  <Text style={styles.value}> Lng: {this.state.longitude || 0} </Text>*/}
+        {/*</Paragraph>*/}
+        {this.state && this.state.isTracking ? (
+          <Paragraph style={styles.disclaimer}>
+            <Text style={styles.disclaimer}>
+              A recolher e armazenar coordenadas.{' '}
+            </Text>
+          </Paragraph>
+        ) : (
+          <Text> </Text>
+        )}
+        <Paragraph>
+          <Text style={styles.value}> Lat: {this.state.latitude || 0} </Text>
+          <Text style={styles.value}> Lng: {this.state.longitude || 0} </Text>
+        </Paragraph>
+        <Paragraph style={styles.bottomP}>
+          <Paragraph>
+            <Button
+              style={styles.buttonHistory}
+              mode={'outlined'}
+              onPress={() => this.props.navigation.navigate('History')}>
+              Histórico
+            </Button>
+            {this.state && this.state.isTracking ? (
+              <Button
+                style={styles.buttonHistory}
+                mode={'outlined'}
+                onPress={() => this.props.navigation.navigate('Map')}>
+                Mapa
+              </Button>
+            ) : (
+              <Text> </Text>
+            )}
+            <Text
+              style={styles.privacy}
+              onPress={() =>
+                Linking.openURL(
+                  'https://app-scuver.web.app/privacy-policy.html',
+                )
+              }>
+              Privacidade
+            </Text>
+          </Paragraph>
+        </Paragraph>
       </SafeAreaView>
     );
   }

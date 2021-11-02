@@ -83,6 +83,8 @@ project.ext.react = [
 
 apply from: "../../node_modules/react-native/react.gradle"
 
+Project background_geolocation = project(':react-native-background-geolocation')
+apply from: "${background_geolocation.projectDir}/app.gradle"
 /**
  * Set this to true to create two separate APKs instead of one:
  *   - An APK that only works on ARM devices
@@ -132,7 +134,7 @@ android {
         applicationId "com.scuverdriver"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 42
+        versionCode 43
         versionName "2.0"
         multiDexEnabled true
     }
@@ -214,6 +216,8 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    implementation 'com.android.support:multidex:1.0.3'
 }
 
 // Run this once to be able to run the application with BUCK

@@ -11,6 +11,8 @@ export class Driver {
     area = '',
     fcmTokens = [],
     isSuper = false,
+    latitude = 0,
+    longitude = 0,
   ) {
     this.uid = uid;
     this.name = name;
@@ -23,5 +25,7 @@ export class Driver {
     this.area = area;
     this.fcmTokens = fcmTokens;
     this.isSuper = isSuper;
+    this.latitude = latitude;
+    this.longitude = longitude;
   }
 }
