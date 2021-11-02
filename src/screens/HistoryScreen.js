@@ -3,8 +3,7 @@ import {Button, Card, Paragraph, Text} from 'react-native-paper';
 import {AppState, SafeAreaView, ScrollView, StyleSheet} from 'react-native';
 import AsyncStorage from '@react-native-community/async-storage';
 import {Order} from '../model/order';
-import firestore from '@react-native-firebase/firestore';
-import moment from 'moment';
+import {ScuverService} from '../scuver.service';
 
 const styles = StyleSheet.create({
   scrollView: {
@@ -57,14 +56,9 @@ const styles = StyleSheet.create({
   },
 });
 
-const states = {
-  viewed: 'Em Preparação',
-  ready: 'Pronta para Entrega',
-  bringing: 'A Entregar',
-};
-
 export default class HistoryScreen extends React.Component {
   ordersSubscription = null;
+  service = new ScuverService();
 
   constructor(props) {
     super(props);
@@ -79,7 +73,9 @@ export default class HistoryScreen extends React.Component {
   }
 
   componentWillUnmount() {
-    this.ordersSubscription();
+    try {
+      this.ordersSubscription();
+    } catch (e) {}
   }
 
   getCurrentUser() {
@@ -89,43 +85,41 @@ export default class HistoryScreen extends React.Component {
       const authUser = u && JSON.parse(u).user;
       if (authUser) {
         console.log('authUser.email', authUser.email);
-        const dbRef = firestore().collection('drivers');
-        dbRef
-          .where('email', '==', authUser.email.toLowerCase().trim())
-          .get({source: 'server'})
-          .then((u) => {
-            const fU = u.docs[0] && u.docs[0].data();
-            if (fU && fU.enabled) {
+        this.service
+          .getRecordByProperty('drivers', 'email', '==', authUser.email)
+          .then((driver) => {
+            if (driver && driver.enabled) {
               this.setState(
                 {
-                  user: fU,
+                  user: driver,
                 },
                 () => {
                   this.subscribeOrders.bind(self)();
+                  AsyncStorage.setItem('user_email', driver.email);
+                  if (driver.isSuper) {
+                    AsyncStorage.setItem('user_is_super', 'true');
+                  } else {
+                    AsyncStorage.removeItem('user_is_super');
+                  }
                 },
               );
-            } else {
-              // Alert.alert('Info', 'Por favor efetue o login.', null, {
-              //   cancelable: true,
-              // });
             }
           });
       } else {
-        // Alert.alert('Info', 'Por favor efetue o login.', null, {
-        //   cancelable: true,
-        // });
         this.props.navigation.navigate('Login');
       }
     });
   }
 
   subscribeOrders() {
-    this.ordersSubscription = firestore()
-      .collection('orders')
-      .where('type', '==', 'delivery')
-      .where('status', '==', 'completed')
-      .where('driver.email', '==', this.state?.user?.email)
-      .onSnapshot((results) => this.updateOrders(results));
+    this.ordersSubscription = this.service
+      .observeRecordsByProperties(
+        'orders',
+        ['type', 'status', 'driver'],
+        ['==', '=='],
+        ['delivery', 'completed', this.state?.user?.email],
+      )
+      .subscribe((results) => this.updateOrders(results));
   }
 
   updateOrders(results) {

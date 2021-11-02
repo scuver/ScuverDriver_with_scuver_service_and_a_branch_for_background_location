@@ -11,10 +11,10 @@ import {
 import AsyncStorage from '@react-native-community/async-storage';
 import {Order} from '../model/order';
 import {showLocation} from 'react-native-map-link';
-import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import Clipboard from '@react-native-community/clipboard';
 import NotificationSound from '../NotificationSound';
+import {ScuverService} from '../scuver.service';
 
 const styles = StyleSheet.create({
   scrollView: {
@@ -72,6 +72,7 @@ const states = {
 
 export default class HomeScreen extends React.Component {
   ordersSubscription = null;
+  service = new ScuverService();
 
   constructor(props) {
     super(props);
@@ -100,9 +101,9 @@ export default class HomeScreen extends React.Component {
   componentWillUnmount() {
     this._unsubscribe();
     AppState.removeEventListener('change', this._handleAppStateChange);
-    if (this.ordersSubscription) {
+    try {
       this.ordersSubscription();
-    }
+    } catch (e) {}
     NotificationSound.stop();
   }
 
@@ -114,12 +115,13 @@ export default class HomeScreen extends React.Component {
     ) {
       console.log('App came to foreground. Updating orders.');
 
-      firestore()
-        .collection('orders')
-        .where('type', '==', 'delivery')
-        .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
-        // .where('status', 'in', ['pending'])
-        .get({source: 'server'})
+      this.service
+        .getRecordsByProperties(
+          'orders',
+          ['type', 'status'],
+          ['==', 'in'],
+          ['delivery', ['pending', 'viewed', 'ready', 'bringing']],
+        )
         .then((results) => this.updateOrders(results));
     }
     this.setState({appState: nextAppState});
@@ -132,22 +134,20 @@ export default class HomeScreen extends React.Component {
       const authUser = u && JSON.parse(u).user;
       if (authUser) {
         console.log('authUser.email', authUser.email);
-        const dbRef = firestore().collection('drivers');
-        dbRef
-          .where('email', '==', authUser.email.toLowerCase().trim())
-          .get({source: 'server'})
-          .then((u) => {
-            const fU = u.docs[0] && u.docs[0].data();
-            if (fU && fU.enabled) {
+        this.service
+          .getRecordByProperty('drivers', 'email', '==', authUser.email)
+          .then((driver) => {
+            console.log('DRIVER', driver);
+            if (driver && driver.enabled) {
               this.setState(
                 {
-                  user: fU,
+                  user: driver,
                 },
                 () => {
                   this.initMessaging.bind(self)();
                   this.subscribeOrders.bind(self)();
-                  AsyncStorage.setItem('user_email', fU.email);
-                  if (fU.isSuper) {
+                  AsyncStorage.setItem('user_email', driver.email);
+                  if (driver.isSuper) {
                     AsyncStorage.setItem('user_is_super', 'true');
                   } else {
                     AsyncStorage.removeItem('user_is_super');
@@ -181,12 +181,10 @@ export default class HomeScreen extends React.Component {
                 tks = [];
               }
               tks.push(fcmToken);
-              firestore()
-                .collection('drivers')
-                .doc(this.state.user.uid)
-                .update({
-                  fcmTokens: tks,
-                });
+              this.service.addOrUpdateRecord('drivers', {
+                ...this.state.user,
+                fcmTokens: tks,
+              });
             } else {
               console.log('Failed', 'No token received');
             }
@@ -217,26 +215,31 @@ export default class HomeScreen extends React.Component {
   }
 
   subscribeOrders() {
-    this.ordersSubscription = firestore()
-      .collection('orders')
-      .where('type', '==', 'delivery')
-      .where('status', 'in', ['pending', 'viewed', 'ready', 'bringing'])
-      // .where('status', 'in', ['pending'])
-      .onSnapshot((results) => this.updateOrders(results));
+    console.log('subscribeOrders subscribeOrders subscribeOrders');
+    this.ordersSubscription = this.service
+      .observeRecordsByProperties(
+        'orders',
+        ['type', 'status'],
+        ['==', 'in'],
+        ['delivery', ['pending', 'viewed', 'ready', 'bringing']],
+      )
+      .subscribe((results) => this.updateOrders(results));
   }
 
   updateOrders(results) {
+    console.log('updateOrders results.length', results?.length);
     const renderedOrders = [];
     const orders = [];
-    results.forEach((r) => {
-      const o = r.data();
-      if (this.state.user.isSuper || o.status !== 'pending') {
-        orders.push(o);
-      }
-    });
-    const driverHasOrder = !!orders.find(
-      (o) => o.driver?.email === this.state.user.email,
-    );
+    if (results && results.length) {
+      results.forEach((o) => {
+        if (this.state.user.isSuper || o.status !== 'pending') {
+          orders.push(o);
+        }
+      });
+    }
+    const driverHasOrder =
+      orders.filter((o) => o.driver?.email === this.state.user.email).length >=
+      2;
 
     orders.forEach((order: Order) => {
       if (
@@ -452,7 +455,7 @@ export default class HomeScreen extends React.Component {
           </Paragraph>
         </Card.Content>
         <Card.Actions>
-          {((order.status === 'pending' && this.state.user.isSuper) ||
+          {(order.status === 'pending' ||
             order.status === 'viewed' ||
             order.status === 'ready') &&
             !order.driver && (
@@ -487,6 +490,7 @@ export default class HomeScreen extends React.Component {
   }
 
   accept(order: Order) {
+    console.log('Aceitar ', order);
     if (
       order.status === 'pending' ||
       order.status === 'viewed' ||
@@ -508,16 +512,13 @@ export default class HomeScreen extends React.Component {
             {
               text: 'Sim',
               onPress: () => {
-                fetch(
-                  'https://europe-west1-scuver-data.cloudfunctions.net/driverAcceptOrder',
-                  {
-                    method: 'post',
-                    body: JSON.stringify({
-                      driverUID: this.state.user.uid,
-                      orderUID: order.uid,
-                    }),
-                  },
-                )
+                fetch('http://89.115.211.74/driverAcceptOrder', {
+                  method: 'post',
+                  body: JSON.stringify({
+                    driverUID: this.state.user.uid,
+                    orderUID: order.uid,
+                  }),
+                })
                   .then((response) => {
                     console.log('response', response);
                     if (response.ok) {
@@ -562,8 +563,8 @@ export default class HomeScreen extends React.Component {
             const log = order.log;
             order.log.push('Bringing at ' + new Date());
             order.status = 'bringing';
-            firestore().collection('orders').doc(order.uid).update({
-              log: order.log,
+            this.service.addOrUpdateRecord('orders', {
+              ...order,
               status: 'bringing',
             });
             this.setState({
@@ -597,9 +598,9 @@ export default class HomeScreen extends React.Component {
             const log = order.log;
             order.log.push('Delivered at ' + new Date());
             order.status = 'completed';
-            firestore().collection('orders').doc(order.uid).update({
-              log: order.log,
-              status: order.status,
+            this.service.addOrUpdateRecord('orders', order);
+            this.setState({
+              deliveringOrder: null,
             });
             this.setState({
               deliveringOrder: null,
